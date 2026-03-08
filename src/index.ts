@@ -7,17 +7,24 @@ app.use(express.json());
 
 import { jwtPassword } from "./config.js";
 import { userMiddleware } from "./middleware.js";
+import { signupSchema, signinSchema } from "./validators/auth.schema.js";
+import {
+    createContentSchema,
+    deleteContentSchema,
+} from "./validators/content.schema.js";
 
 app.post("/api/v1/signup", async (req, res) => {
-    // TODO: zod validation
     try {
-        const { username, password } = req.body;
-        if (!username || !password) {
+        const result = signupSchema.safeParse(req.body);
+
+        if (!result.success) {
             return res.status(400).json({
                 success: false,
-                message: "All fields are required",
+                message: result.error,
             });
         }
+
+        const { username, password } = result.data;
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -40,14 +47,16 @@ app.post("/api/v1/signup", async (req, res) => {
 
 app.post("/api/v1/signin", async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const result = signinSchema.safeParse(req.body);
 
-        if (!username || !password) {
+        if (!result.success) {
             return res.status(400).json({
                 success: false,
-                message: "All fields are required",
+                message: result.error,
             });
         }
+
+        const { username, password } = result.data;
 
         const existingUser = await UserModel.findOne({ username: username });
         if (!existingUser) {
@@ -83,7 +92,15 @@ app.post("/api/v1/signin", async (req, res) => {
 });
 
 app.post("/api/v1/content", userMiddleware, async (req, res) => {
-    const { link, title } = req.body;
+    const result = createContentSchema.safeParse(req.body);
+
+    if (!result.success) {
+        return res.status(400).json({
+            success: false,
+            message: result.error,
+        });
+    }
+    const { link, title } = result.data;
 
     await ContentModel.create({
         link,
@@ -95,7 +112,7 @@ app.post("/api/v1/content", userMiddleware, async (req, res) => {
 
     return res.status(200).json({
         success: true,
-        messge: "Content added",
+        message: "Content added",
     });
 });
 
@@ -118,7 +135,16 @@ app.get(
 );
 
 app.delete("/api/v1/content", async (req, res) => {
-    const { contentId } = req.body;
+    const result = deleteContentSchema.safeParse(req.body);
+
+    if (!result.success) {
+        return res.status(400).json({
+            success: false,
+            message: result.error,
+        });
+    }
+
+    const { contentId } = result.data;
 
     await ContentModel.deleteOne({
         contentId,
