@@ -92,70 +92,109 @@ app.post("/api/v1/signin", async (req, res) => {
 });
 
 app.post("/api/v1/content", userMiddleware, async (req, res) => {
-    const result = createContentSchema.safeParse(req.body);
+    try {
+        const result = createContentSchema.safeParse(req.body);
 
-    if (!result.success) {
-        return res.status(400).json({
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                message: result.error,
+            });
+        }
+        const { link, title } = result.data;
+        if (!req.userId) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not logged in",
+            });
+        }
+
+        await ContentModel.create({
+            link,
+            title,
+            userId: req.userId,
+            tags: [],
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Content added",
+        });
+    } catch (error) {
+        return res.status(500).json({
             success: false,
-            message: result.error,
+            message: "Something went wrong while adding content",
         });
     }
-    const { link, title } = result.data;
-
-    await ContentModel.create({
-        link,
-        title,
-        //@ts-ignore
-        userId: req.userId,
-        tags: [],
-    });
-
-    return res.status(200).json({
-        success: true,
-        message: "Content added",
-    });
 });
 
 app.get(
     "/api/v1/content",
     userMiddleware,
     async (req: Request, res: Response) => {
-        //@ts-ignore
-        const userId = req.userId;
-        const content = await ContentModel.findOne({ userId: userId })
-            .populate("userId", "username")
-            .exec();
+        try {
+            const userId = req.userId;
 
-        return res.status(200).json({
-            success: true,
-            message: "Content has been fetched successfully",
-            content,
-        });
+            if (!userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You are not logged in",
+                });
+            }
+
+            const content = await ContentModel.findOne({ userId: userId })
+                .populate("userId", "username")
+                .exec();
+
+            return res.status(200).json({
+                success: true,
+                message: "Content has been fetched successfully",
+                content,
+            });
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: "Something went wrong while fetching content",
+            });
+        }
     },
 );
 
-app.delete("/api/v1/content", async (req, res) => {
-    const result = deleteContentSchema.safeParse(req.body);
+app.delete("/api/v1/content", userMiddleware, async (req, res) => {
+    try {
+        const result = deleteContentSchema.safeParse(req.body);
 
-    if (!result.success) {
-        return res.status(400).json({
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                message: result.error,
+            });
+        }
+
+        const { contentId } = result.data;
+
+        if (!req.userId) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not logged in",
+            });
+        }
+
+        await ContentModel.deleteOne({
+            _id: contentId,
+            userId: req.userId,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Content deleted successfully",
+        });
+    } catch (error) {
+        return res.status(500).json({
             success: false,
-            message: result.error,
+            message: "Something went wrong while deleting content",
         });
     }
-
-    const { contentId } = result.data;
-
-    await ContentModel.deleteOne({
-        contentId,
-        //@ts-ignore
-        userId: req.userId,
-    });
-
-    return res.status(200).json({
-        success: true,
-        message: "Content deleted successfully",
-    });
 });
 
 app.post("/api/v1/brain/share", async (req: Request, res: Response) => {});

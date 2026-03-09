@@ -11,10 +11,10 @@ export const userMiddleware = (
     const decoded = jwt.verify(header as string, jwtPassword);
 
     if (decoded) {
-        // see why is this and how to solves it
-        //@ts-ignore
-        req.userId = decoded.id;
-        next();
+        if (typeof decoded !== "string" && "id" in decoded) {
+            req.userId = String(decoded.id);
+            next();
+        }
     } else {
         return res.status(403).json({
             success: false,

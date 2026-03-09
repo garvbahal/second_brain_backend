@@ -2,7 +2,10 @@ import { z } from "zod";
 
 export const createContentSchema = z.object({
     title: z.string().min(1, { message: "Title is required" }),
-    link: z.string().min(1, { message: "Link is requried" }),
+    link: z
+        .string()
+        .url({ message: "Invalid URL format" })
+        .min(1, { message: "Link is requried" }),
     tags: z.array(z.string()).optional(),
 });
 
