@@ -7,15 +7,27 @@ export const userMiddleware = (
     res: Response,
     next: NextFunction,
 ) => {
-    const header = req.headers["authorization"];
-    const decoded = jwt.verify(header as string, jwtPassword);
-
-    if (decoded) {
-        if (typeof decoded !== "string" && "id" in decoded) {
-            req.userId = String(decoded.id);
-            next();
+    try {
+        const header = req.headers["authorization"];
+        if(!header){
+            return res.status(400).json({
+                success:false,
+                message:"Authorization header is missing"
+            })
         }
-    } else {
+        const decoded = jwt.verify(header as string, jwtPassword);
+
+        if (decoded) {
+            if (typeof decoded !== "string" && "id" in decoded) {
+                req.userId = String(decoded.id);
+                return next();
+            }
+        }
+        return res.status(403).json({
+            success: false,
+            message: "You are not logged in",
+        });
+    } catch (error) {
         return res.status(403).json({
             success: false,
             message: "You are not logged in",

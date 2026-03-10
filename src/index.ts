@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from "express";
 const app = express();
 import jwt from "jsonwebtoken";
-import { ContentModel, UserModel } from "./db.js";
+import { ContentModel, LinkModel, UserModel } from "./db.js";
 import bcrypt from "bcrypt";
 app.use(express.json());
 
@@ -12,6 +12,8 @@ import {
     createContentSchema,
     deleteContentSchema,
 } from "./validators/content.schema.js";
+import { random } from "./utils.js";
+import { seeShareLinkSchema } from "./validators/shareLink.schema.js";
 
 app.post("/api/v1/signup", async (req, res) => {
     try {
@@ -142,7 +144,7 @@ app.get(
                 });
             }
 
-            const content = await ContentModel.findOne({ userId: userId })
+            const content = await ContentModel.find({ userId: userId })
                 .populate("userId", "username")
                 .exec();
 
@@ -197,7 +199,96 @@ app.delete("/api/v1/content", userMiddleware, async (req, res) => {
     }
 });
 
-app.post("/api/v1/brain/share", async (req: Request, res: Response) => {});
+app.post(
+    "/api/v1/brain/share",
+    userMiddleware,
+    async (req: Request, res: Response) => {
+        try {
+            const { share } = req.body;
 
-app.post("/api/v1/brain/:shareLink", async (req: Request, res: Response) => {});
+            if (!req.userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You are not logged in",
+                });
+            }
+            if (share) {
+                const existingLink = await LinkModel.findOne({
+                    userId: req.userId,
+                });
+
+                if (existingLink) {
+                    return res.status(200).json({
+                        success: true,
+                        hash: existingLink.hash,
+                    });
+                }
+                await LinkModel.create({
+                    userId: req.userId,
+                    hash: random(10),
+                });
+            } else {
+                await LinkModel.deleteOne({
+                    userId: req.userId,
+                });
+            }
+            return res.status(200).json({
+                success: true,
+                message: "Link updated successfully",
+            });
+        } catch (error) {
+            return res.status(500).json({
+                success: false,
+                message: "Something went wrong while updating the link",
+            });
+        }
+    },
+);
+
+app.get("/api/v1/brain/:shareLink", async (req: Request, res: Response) => {
+    try {
+        const result = seeShareLinkSchema.safeParse(req.params);
+
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                message: result.error,
+            });
+        }
+
+        const hash = result.data.shareLink;
+
+        const link = await LinkModel.findOne({ hash: hash });
+
+        if (!link) {
+            return res.status(404).json({
+                success: false,
+                message: "Link not found",
+            });
+        }
+
+        const content = await ContentModel.find({
+            userId: link.userId,
+        });
+ 
+        const user = await UserModel.findById(link.userId);
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            username: user.username,
+            content: content,
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Something went wrong while fetching shared content",
+        });
+    }
+});
 app.listen(3000);
